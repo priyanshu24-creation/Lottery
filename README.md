@@ -72,7 +72,9 @@ The seed script uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` from backend `.env`. Use
 The repository root contains the Vercel configuration and the serverless API entry point:
 
 - `frontend/dist` is built and served as the React/Vite application.
-- `api/[...path].js` sends every `/api/*` request to the existing Express app.
+- `api/index.js` is the Vercel-discovered serverless Express function. The
+  first rewrite in `vercel.json` sends every `/api/*` request to it before the
+  frontend SPA fallback is considered.
 - The SPA rewrite applies only to non-API paths such as `/`, `/games`, `/account`, and `/admin`.
 - Vercel Cron calls `/api/cron/draws` to settle due draws without a long-running process.
 
