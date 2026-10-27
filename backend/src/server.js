@@ -13,9 +13,16 @@ import { generateWinningNumbers, matchedCount, normalizeNumbers, numbersKey, pri
 const app = express();
 const port = Number(process.env.PORT || 4000);
 app.set('trust proxy', 1);
+const allowedOrigins = new Set([
+  ...(process.env.FRONTEND_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
+]);
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '1mb' }));
@@ -89,6 +96,16 @@ async function executeDraw(drawId, adminId) {
 }
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+function requireCronSecret(req, res, next) {
+  const configuredSecret = process.env.CRON_SECRET;
+  const authorization = req.get('authorization') || '';
+  const suppliedSecret = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!configuredSecret || suppliedSecret !== configuredSecret) {
+    return res.status(configuredSecret ? 401 : 503).json({ error: 'Scheduled draw authorization is unavailable.' });
+  }
+  next();
+}
 
 app.get('/api/lotteries', asyncRoute(async (_req, res) => {
   const { rows } = await pool.query(
@@ -549,6 +566,11 @@ app.put('/api/admin/announcements/:id', requireAdmin, requireEditorOrAdmin, asyn
   res.json(rows[0]);
 }));
 
+app.get('/api/cron/draws', requireCronSecret, asyncRoute(async (_req, res) => {
+  const processed = await executeDueDraws();
+  res.json({ ok: true, processed });
+}));
+
 app.use((req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
 app.use((err, _req, res, _next) => {
   if (err.code === '23505') return res.status(409).json({ error: 'A record with these details already exists.' });
@@ -559,12 +581,18 @@ app.use((err, _req, res, _next) => {
 
 async function executeDueDraws() {
   const { rows } = await pool.query("SELECT id FROM game_draws WHERE status='open' AND draw_at <= NOW() ORDER BY draw_at LIMIT 20");
+  let processed = 0;
   for (const draw of rows) {
-    try { await executeDraw(draw.id, null); } catch (error) { console.error(`Unable to execute scheduled draw ${draw.id}:`, error.message); }
+    try { await executeDraw(draw.id, null); processed += 1; } catch (error) { console.error(`Unable to execute scheduled draw ${draw.id}:`, error.message); }
   }
+  return processed;
 }
 
-const scheduler = setInterval(() => executeDueDraws().catch((error) => console.error('Draw scheduler error:', error.message)), 60 * 1000);
-scheduler.unref?.();
+const runningAsVercelFunction = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+if (!runningAsVercelFunction) {
+  const scheduler = setInterval(() => executeDueDraws().catch((error) => console.error('Draw scheduler error:', error.message)), 60 * 1000);
+  scheduler.unref?.();
+  app.listen(port, () => console.log(`Dear Results Portal API listening on port ${port}`));
+}
 
-app.listen(port, () => console.log(`Dear Results Portal API listening on port ${port}`));
+export default app;

@@ -1,5 +1,3 @@
-const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-
 export function expectArray(value, label) {
   if (!Array.isArray(value)) {
     throw new Error(`Invalid ${label} response. Expected an array.`);
@@ -15,13 +13,9 @@ export function expectObject(value, label) {
 }
 
 export async function api(path, options = {}) {
-  if (import.meta.env.PROD && !base) {
-    throw new Error('Production API URL is not configured. Set VITE_API_BASE_URL in Vercel and redeploy.');
-  }
-
   let response;
   try {
-    response = await fetch(`${base}/api${path}`, {
+    response = await fetch(`/api${path}`, {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
       ...options
@@ -34,8 +28,8 @@ export async function api(path, options = {}) {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.toLowerCase().includes('application/json')) {
     const message = response.ok
-      ? 'The API returned a web page instead of JSON. Check VITE_API_BASE_URL and the backend deployment.'
-      : `Request failed (${response.status}). Check the API deployment and VITE_API_BASE_URL.`;
+      ? 'The API returned a web page instead of JSON. Check the unified Vercel API deployment.'
+      : `Request failed (${response.status}). Check the unified Vercel API deployment.`;
     const error = new Error(message);
     error.status = response.status;
     throw error;

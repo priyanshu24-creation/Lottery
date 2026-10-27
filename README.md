@@ -57,7 +57,8 @@ npm run dev
 ```
 Frontend runs on `http://localhost:5173`.
 
-The Vite dev server proxies `/api` to the backend. For production, set `VITE_API_BASE_URL` if the API is hosted on a different origin, configure CORS and cookie settings for your domains, and use HTTPS.
+The Vite dev server proxies the same-origin `/api` path to the backend. Production uses
+the same relative `/api` paths through the unified Vercel deployment.
 
 Public routes include `/`, `/games`, `/games/:slug`, and `/account`. The protected administrator workspace is available at `/admin`; it includes game configuration, draw scheduling/execution, entry review, user review, announcements, and audit logs. Scheduled draws are settled server-side when due, and administrators can execute a draw manually for authorized testing.
 
@@ -66,38 +67,51 @@ The seed script uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` from backend `.env`. Use
 
 ## Deploy notes
 
-### Vercel frontend
+### Unified Vercel deployment
 
-The repository includes a root `vercel.json` for this monorepo. It installs and builds
-`frontend`, publishes `frontend/dist`, and rewrites client-side routes such as `/games`,
-`/account`, and `/admin` to the Vite entry point. Import the repository into Vercel
-without changing the Root Directory, or deploy from `dear-results-portal` with the Vercel
-CLI.
+The repository root contains the Vercel configuration and the serverless API entry point:
 
-Set this Vercel environment variable before deploying:
+- `frontend/dist` is built and served as the React/Vite application.
+- `api/[...path].js` sends every `/api/*` request to the existing Express app.
+- The SPA rewrite applies only to non-API paths such as `/`, `/games`, `/account`, and `/admin`.
+- Vercel Cron calls `/api/cron/draws` to settle due draws without a long-running process.
+
+The configured minutely Cron schedule requires a Vercel plan that supports more-than-daily
+Cron jobs. Vercel Hobby rejects frequent schedules; use an eligible plan for scheduled
+draw settlement or deliberately change the schedule before deploying.
+
+Import the repository with the Root Directory set to the repository root. Do not set the
+Root Directory to `frontend` and do not create a second Vercel project for `backend`.
+
+Set these Vercel environment variables for Production and Preview as appropriate:
 
 ```text
-VITE_API_BASE_URL=https://your-api-host.example.com
+NODE_ENV=production
+DATABASE_URL=postgresql://...              # hosted PostgreSQL connection string
+JWT_SECRET=...                              # random secret, at least 32 characters
+FRONTEND_ORIGIN=https://your-app.vercel.app
+COOKIE_SECURE=true
+COOKIE_SAME_SITE=lax
+CRON_SECRET=...                             # random secret used by Vercel Cron
+ADMIN_EMAIL=...
+ADMIN_PASSWORD=...
 ```
 
-The API origin must not have a trailing slash. Vercel hosts the frontend only; the
-Express backend must run separately on a long-running Node host because it maintains the
-PostgreSQL pool and server-side scheduled draw worker. The Vercel SPA rewrite does not
-replace the backend API.
+Run `database/schema.sql` against the hosted PostgreSQL database, then run the existing
+`npm run seed:admin` command from `backend/` once with the production environment loaded.
+Never commit `.env` files or database credentials. For the unified deployment, frontend
+API requests remain relative (`/api/...`) and no `VITE_API_BASE_URL` is required.
 
-After adding or changing `VITE_API_BASE_URL`, create a new Vercel deployment because
-Vite embeds `VITE_*` variables into the frontend bundle at build time. The frontend now
-rejects HTML or malformed API responses instead of treating them as empty data.
+The deployment build command is defined in `vercel.json`:
 
-### Backend and database
+```text
+npm --prefix frontend run build
+```
 
-- Deploy the Express backend to a Node host that supports long-running web services.
-- Use managed PostgreSQL.
-- Set all environment variables in the hosting dashboard; never commit `.env`.
-- For cross-site frontend/backend deployments, set `COOKIE_SAME_SITE=none`, `COOKIE_SECURE=true`, and configure `FRONTEND_ORIGIN` to the exact frontend origin. HTTPS is required for cross-site cookies.
-- Run `database/schema.sql` against production DB before starting the backend.
-- Run `npm run seed:admin` once to create the first admin, then remove/rotate bootstrap credentials.
-- Configure database backups, monitoring, and an SMTP/service contact before launch.
+The install command installs both frontend and backend dependencies. The regular local
+backend listener and one-minute scheduler remain available when `npm run dev` or
+`npm start` is used outside Vercel; inside Vercel, only the exported Express handler is
+loaded and scheduled draws are handled by the protected Cron endpoint.
 
 ## Important launch checklist
 - Verify that the client is legally permitted to publish the relevant lottery information in each target jurisdiction.
