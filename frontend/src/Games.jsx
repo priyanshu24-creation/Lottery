@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Clock3, Dices, LogIn, Sparkles, Trophy } from 'lucide-react';
-import { api } from './api';
+import { api, expectArray, expectObject } from './api';
 
 const formatDate = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Schedule pending';
 
@@ -35,7 +35,7 @@ function GameDetails({ game, user }) {
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const draws = game.draws || [];
+  const draws = game.draws;
   const upcomingDraw = useMemo(() => draws.find((draw) => draw.status === 'open' && new Date(draw.draw_at) > new Date()), [draws]);
   const numbers = Array.from({ length: game.number_max - game.number_min + 1 }, (_, index) => game.number_min + index);
   const toggleNumber = (number) => {
@@ -82,16 +82,42 @@ export default function GamesPage({ slug = '' }) {
   const [announcements, setAnnouncements] = useState([]);
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(Boolean(slug));
   useEffect(() => {
-    api('/games').then(setGames).catch((loadError) => setError(loadError.message));
-    api('/announcements').then(setAnnouncements).catch(() => setAnnouncements([]));
-    api('/auth/me').then((data) => setUser(data.user)).catch(() => setUser(null));
+    setLoading(true);
+    Promise.all([api('/games'), api('/announcements')])
+      .then(([gamesResponse, announcementsResponse]) => {
+        setGames(expectArray(gamesResponse, 'games'));
+        setAnnouncements(expectArray(announcementsResponse, 'announcements'));
+      })
+      .catch((loadError) => setError(loadError.message))
+      .finally(() => setLoading(false));
+    api('/auth/me').then((data) => setUser(expectObject(data.user, 'account session'))).catch(() => setUser(null));
   }, []);
   useEffect(() => {
-    if (!slug) return setGame(null);
-    api(`/games/${encodeURIComponent(slug)}`).then(setGame).catch((loadError) => setError(loadError.message));
+    if (!slug) {
+      setGame(null);
+      setDetailError('');
+      setDetailLoading(false);
+      return;
+    }
+    setDetailLoading(true);
+    setDetailError('');
+    api(`/games/${encodeURIComponent(slug)}`)
+      .then((data) => {
+        const nextGame = expectObject(data, 'game details');
+        setGame({ ...nextGame, draws: expectArray(nextGame.draws, 'game draws'), prize_info: expectArray(nextGame.prize_info, 'game prize information') });
+      })
+      .catch((loadError) => setDetailError(loadError.message))
+      .finally(() => setDetailLoading(false));
   }, [slug]);
   const announcementSection = announcements.length > 0 && <section className="section announcements-section"><div className="section-heading"><div><span className="eyebrow">DRAWLINE NEWS</span><h2>Announcements</h2></div></div><div className="announcement-list">{announcements.map((announcement) => <article className="announcement-card" key={announcement.id}><span className="eyebrow">{new Date(announcement.published_at).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span><h3>{announcement.title}</h3><p>{announcement.body}</p></article>)}</div></section>;
-  if (slug && game) return <main className="games-page"><GameDetails game={game} user={user}/>{announcementSection}</main>;
-  return <main className="games-page"><section className="games-hero"><span className="eyebrow">DRAWLINE PLAY</span><h1>Play with points.<br/><em>Keep it light.</em></h1><p>Explore number games, make virtual-points entries, and follow every draw. No deposits, cash prizes, or withdrawals.</p><div className="games-hero-note"><Trophy size={18}/><span>Every entry and result is tied to your account history.</span></div></section><section className="section games-list-section"><div className="section-heading"><div><span className="eyebrow">AVAILABLE GAMES</span><h2>Choose your game</h2><p>Each game explains its range, selection count, draw schedule, and virtual prize guide.</p></div><a className="quiet-link light-link" href="/account">My account <ArrowLeft size={15} className="flip-icon"/></a></div>{error&&<div className="alert error-text">{error}</div>}{games.length === 0 ? <div className="empty-state"><div className="empty-icon"><Sparkles/></div><h3>No games are open yet</h3><p>Check back when the next game schedule is published.</p></div> : <div className="games-grid">{games.map((availableGame) => <GameCard game={availableGame} key={availableGame.id}/>)}</div>}</section>{announcementSection}</main>;
+  if (slug) {
+    if (detailLoading) return <main className="games-page"><section className="panel loading">Loading game details…</section></main>;
+    if (detailError) return <main className="games-page"><section className="panel"><p className="error-text" role="alert">{detailError}</p><a className="secondary-button" href="/games">Back to games</a></section></main>;
+    if (game) return <main className="games-page"><GameDetails game={game} user={user}/>{announcementSection}</main>;
+  }
+  return <main className="games-page"><section className="games-hero"><span className="eyebrow">DRAWLINE PLAY</span><h1>Play with points.<br/><em>Keep it light.</em></h1><p>Explore number games, make virtual-points entries, and follow every draw. No deposits, cash prizes, or withdrawals.</p><div className="games-hero-note"><Trophy size={18}/><span>Every entry and result is tied to your account history.</span></div></section><section className="section games-list-section"><div className="section-heading"><div><span className="eyebrow">AVAILABLE GAMES</span><h2>Choose your game</h2><p>Each game explains its range, selection count, draw schedule, and virtual prize guide.</p></div><a className="quiet-link light-link" href="/account">My account <ArrowLeft size={15} className="flip-icon"/></a></div>{error&&<div className="alert error-text">{error}</div>}{loading?<div className="loading">Loading available games…</div>:games.length === 0 ? <div className="empty-state"><div className="empty-icon"><Sparkles/></div><h3>No games are open yet</h3><p>Check back when the next game schedule is published.</p></div> : <div className="games-grid">{games.map((availableGame) => <GameCard game={availableGame} key={availableGame.id}/>)}</div>}</section>{announcementSection}</main>;
 }

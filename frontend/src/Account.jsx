@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, LogOut, UserRound } from 'lucide-react';
-import { api } from './api';
+import { api, expectArray, expectObject } from './api';
 
 const formatDate = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
@@ -20,7 +20,7 @@ function AuthForm({ onAuthenticated }) {
         method: 'POST',
         body: JSON.stringify(mode === 'login' ? { email, password } : { name, email, password })
       });
-      onAuthenticated(data.user);
+      onAuthenticated(expectObject(data.user, 'account sign-in'));
     } catch (submitError) {
       setError(submitError.message);
     } finally {
@@ -34,7 +34,13 @@ function UserDashboard({ user, onLogout }) {
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    api('/me/dashboard').then(setDashboard).catch((loadError) => setError(loadError.message));
+    api('/me/dashboard').then((data) => {
+      const nextDashboard = expectObject(data, 'account dashboard');
+      const entries = expectArray(nextDashboard.entries, 'account entries');
+      const transactions = expectArray(nextDashboard.transactions, 'point transactions');
+      if (!entries.every((entry) => Array.isArray(entry.numbers))) throw new Error('Invalid account entries response. Entry numbers must be an array.');
+      setDashboard({ ...nextDashboard, user: expectObject(nextDashboard.user, 'account user'), entries, transactions });
+    }).catch((loadError) => setError(loadError.message));
   }, []);
   if (error) return <section className="panel account-panel"><p className="error-text">{error}</p><button className="secondary-button" onClick={onLogout}>Return to sign in</button></section>;
   if (!dashboard) return <section className="panel loading">Loading your account…</section>;
@@ -50,7 +56,7 @@ function UserDashboard({ user, onLogout }) {
 export default function AccountPage() {
   const [user, setUser] = useState(null);
   const [checked, setChecked] = useState(false);
-  useEffect(() => { api('/auth/me').then((data) => setUser(data.user)).catch(() => setUser(null)).finally(() => setChecked(true)); }, []);
+  useEffect(() => { api('/auth/me').then((data) => setUser(expectObject(data.user, 'account session'))).catch(() => setUser(null)).finally(() => setChecked(true)); }, []);
   async function logout() {
     try { await api('/auth/logout', { method: 'POST' }); } finally { setUser(null); }
   }

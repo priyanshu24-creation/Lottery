@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarDays, Lock, Play, Plus, Save, UsersRound } from 'lucide-react';
-import { api } from './api';
+import { api, expectArray, expectObject } from './api';
 
 const initialGame = { name: '', slug: '', description: '', number_min: 1, number_max: 30, selection_count: 5, entry_cost: 10, prize_info: '[{"matches":5,"points":500},{"matches":4,"points":100},{"matches":3,"points":25}]', is_active: true };
 const formatDate = (value) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -27,13 +27,13 @@ export default function GamingAdmin({ tab }) {
     const endpoint = { games: '/admin/games', draws: '/admin/draws', entries: '/admin/entries', users: '/admin/users', announcements: '/admin/announcements', audit: '/admin/audit-logs' }[tab];
     const request = tab === 'draws' ? Promise.all([api('/admin/draws'), api('/admin/games')]) : api(endpoint);
     request.then((data) => {
-      if (tab === 'draws') { setDraws(data[0]); setGames(data[1]); return; }
-      if (tab === 'games') setGames(data);
-      if (tab === 'draws') setDraws(data);
-      if (tab === 'entries') setEntries(data);
-      if (tab === 'users') setUsers(data);
-      if (tab === 'announcements') setAnnouncements(data);
-      if (tab === 'audit') setAuditLogs(data);
+      if (tab === 'draws') { setDraws(expectArray(data[0], 'admin draws')); setGames(expectArray(data[1], 'admin games')); return; }
+      if (tab === 'games') setGames(expectArray(data, 'admin games'));
+      if (tab === 'draws') setDraws(expectArray(data, 'admin draws'));
+      if (tab === 'entries') setEntries(expectArray(data, 'admin entries'));
+      if (tab === 'users') setUsers(expectArray(data, 'admin users'));
+      if (tab === 'announcements') setAnnouncements(expectArray(data, 'admin announcements'));
+      if (tab === 'audit') setAuditLogs(expectArray(data, 'admin audit logs'));
     }).catch((loadError) => setError(loadError.message)).finally(() => setLoading(false));
   }, [tab, reload]);
 
@@ -58,7 +58,7 @@ export default function GamingAdmin({ tab }) {
   }
   async function drawAction(id, action) {
     if (action === 'run' && !confirm('Execute this draw now? This cannot be undone.')) return;
-    try { const result = await api(`/admin/draws/${id}/${action}`, { method: 'POST' }); setNotice(action === 'run' ? `Draw completed: ${result.winning_numbers?.join(', ') || 'results saved'}.` : 'Entries closed.'); setReload((value) => value + 1); } catch (actionError) { setError(actionError.message); }
+    try { const result = expectObject(await api(`/admin/draws/${id}/${action}`, { method: 'POST' }), 'draw action'); setNotice(action === 'run' ? `Draw completed: ${Array.isArray(result.winning_numbers) ? result.winning_numbers.join(', ') : 'results saved'}.` : 'Entries closed.'); setReload((value) => value + 1); } catch (actionError) { setError(actionError.message); }
   }
   async function saveAnnouncement(event) {
     event.preventDefault();

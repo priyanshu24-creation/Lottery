@@ -85,6 +85,10 @@ Express backend must run separately on a long-running Node host because it maint
 PostgreSQL pool and server-side scheduled draw worker. The Vercel SPA rewrite does not
 replace the backend API.
 
+After adding or changing `VITE_API_BASE_URL`, create a new Vercel deployment because
+Vite embeds `VITE_*` variables into the frontend bundle at build time. The frontend now
+rejects HTML or malformed API responses instead of treating them as empty data.
+
 ### Backend and database
 
 - Deploy the Express backend to a Node host that supports long-running web services.
