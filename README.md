@@ -58,7 +58,7 @@ npm run dev
 Frontend runs on `http://localhost:5173`.
 
 The Vite dev server proxies the same-origin `/api` path to the backend. Production uses
-the same relative `/api` paths through the unified Vercel deployment.
+the same relative `/api` paths through the unified Netlify deployment.
 
 Public routes include `/`, `/games`, `/games/:slug`, and `/account`. The protected administrator workspace is available at `/admin`; it includes game configuration, draw scheduling/execution, entry review, user review, announcements, and audit logs. Scheduled draws are settled server-side when due, and administrators can execute a draw manually for authorized testing.
 
@@ -67,53 +67,61 @@ The seed script uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` from backend `.env`. Use
 
 ## Deploy notes
 
-### Unified Vercel deployment
+### Unified Netlify deployment
 
-The repository root contains the Vercel configuration and the serverless API entry point:
+Import the repository root (`dear-results-portal`) into Netlify using branch `main`.
+`netlify.toml` defines the build and publish settings:
 
-- `frontend/dist` is built and served as the React/Vite application.
-- `api/index.js` is the Vercel-discovered serverless Express function. The
-  first rewrite in `vercel.json` sends every `/api/*` request to it before the
-  frontend SPA fallback is considered.
-- The SPA rewrite applies only to non-API paths such as `/`, `/games`, `/account`, and `/admin`.
-- Vercel Cron calls `/api/cron/draws` to settle due draws without a long-running process.
+- `frontend/dist` is the published React/Vite application.
+- `backend/netlify/functions/api.js` is the serverless Express entry point.
+- The `/api/*` rewrite runs before the `/* -> /index.html` SPA fallback and preserves the `/api` prefix.
+- `backend/netlify/functions/cron-draws.js` is a Netlify Scheduled Function that processes due draws every minute in UTC.
+- The regular Express listener and local draw scheduler still run with `npm run dev` or `npm start` from `backend/`.
 
-The configured minutely Cron schedule requires a Vercel plan that supports more-than-daily
-Cron jobs. Vercel Hobby rejects frequent schedules; use an eligible plan for scheduled
-draw settlement or deliberately change the schedule before deploying.
-
-Import the repository with the Root Directory set to the repository root. Do not set the
-Root Directory to `frontend` and do not create a second Vercel project for `backend`.
-
-Set these Vercel environment variables for Production and Preview as appropriate:
+Set these Netlify environment variables in the Functions scope for Production (and safe,
+separate values for Deploy Previews when needed):
 
 ```text
 NODE_ENV=production
-DATABASE_URL=postgresql://...              # hosted PostgreSQL connection string
-JWT_SECRET=...                              # random secret, at least 32 characters
-FRONTEND_ORIGIN=https://your-app.vercel.app
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
+JWT_SECRET=<random-secret-at-least-32-characters>
+FRONTEND_ORIGIN=https://your-site.netlify.app
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=lax
-CRON_SECRET=...                             # random secret used by Vercel Cron
-ADMIN_EMAIL=...
-ADMIN_PASSWORD=...
+CRON_SECRET=<random-cron-secret>
+ADMIN_EMAIL=<administrator-email>
+ADMIN_PASSWORD=<strong-unique-password>
 ```
 
-Run `database/schema.sql` against the hosted PostgreSQL database, then run the existing
-`npm run seed:admin` command from `backend/` once with the production environment loaded.
-Never commit `.env` files or database credentials. For the unified deployment, frontend
-API requests remain relative (`/api/...`) and no `VITE_API_BASE_URL` is required.
+`PORT` is optional on Netlify and defaults to `4000`; it is only needed for the local
+Express listener. `DATABASE_URL`, `JWT_SECRET`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, and
+`FRONTEND_ORIGIN` are used by the running API. Netlify’s runtime site/deploy URL is
+also accepted as a CORS origin, but set `FRONTEND_ORIGIN` explicitly for a custom domain.
+`CRON_SECRET` protects the public
+`/api/cron/draws` fallback endpoint. `ADMIN_EMAIL` and `ADMIN_PASSWORD` are read by the
+one-time admin seed script, not by normal request handling. `NODE_ENV` controls runtime
+behavior and is recommended in production.
 
-The deployment build command is defined in `vercel.json`:
+Apply the schema to the hosted Neon database before the first deploy, then seed the admin
+once from a secure shell with the production environment loaded:
 
-```text
-npm --prefix frontend run build
+```bash
+psql "$DATABASE_URL" -f database/schema.sql
+cd backend && npm run seed:admin
 ```
 
-The install command installs both frontend and backend dependencies. The regular local
-backend listener and one-minute scheduler remain available when `npm run dev` or
-`npm start` is used outside Vercel; inside Vercel, only the exported Express handler is
-loaded and scheduled draws are handled by the protected Cron endpoint.
+Never commit `.env` files or database credentials. The frontend uses relative `/api/...`
+requests, so no `VITE_API_BASE_URL` is required and `DATABASE_URL` is never exposed to
+the browser.
+
+### Netlify secret scanning
+
+Only `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PASSWORD`, and `CRON_SECRET` should be marked
+`Contains secret values` in Netlify. `NODE_ENV`, `PORT`, `FRONTEND_ORIGIN`,
+`COOKIE_SECURE`, and `COOKIE_SAME_SITE` are configuration values, not credentials. The
+repository also sets the narrow `SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES` exception for
+the known local literals used by the examples and Vite proxy. Do not set
+`SECRETS_SCAN_ENABLED=false`.
 
 ## Important launch checklist
 - Verify that the client is legally permitted to publish the relevant lottery information in each target jurisdiction.

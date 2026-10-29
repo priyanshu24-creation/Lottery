@@ -1,0 +1,26 @@
+[build]
+  command = "npm ci --prefix backend && npm ci --prefix frontend && npm run build"
+  publish = "frontend/dist"
+
+# These are non-sensitive literals used by local examples and the Vite proxy.
+# Keep the exception narrow; never disable secret scanning globally.
+[build.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "4000,development,http://localhost:5173,http://localhost:4000"
+
+[functions]
+  directory = "backend/netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["express"]
+
+# Keep the API rewrite before the SPA fallback. The /api prefix is retained so
+# the existing Express routes continue to match unchanged.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

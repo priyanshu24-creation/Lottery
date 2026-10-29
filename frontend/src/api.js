@@ -28,8 +28,8 @@ export async function api(path, options = {}) {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.toLowerCase().includes('application/json')) {
     const message = response.ok
-      ? 'The API returned a web page instead of JSON. Check the unified Vercel API deployment.'
-      : `Request failed (${response.status}). Check the unified Vercel API deployment.`;
+      ? 'The API returned a web page instead of JSON. Check the unified Netlify API deployment.'
+      : `Request failed (${response.status}). Check the unified Netlify API deployment.`;
     const error = new Error(message);
     error.status = response.status;
     throw error;

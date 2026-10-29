@@ -15,6 +15,7 @@ const port = Number(process.env.PORT || 4000);
 app.set('trust proxy', 1);
 const allowedOrigins = new Set([
   ...(process.env.FRONTEND_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...[process.env.URL, process.env.DEPLOY_PRIME_URL, process.env.DEPLOY_URL].filter(Boolean),
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
 ]);
 app.use(helmet());
@@ -588,11 +589,18 @@ async function executeDueDraws() {
   return processed;
 }
 
-const runningAsVercelFunction = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
-if (!runningAsVercelFunction) {
+const runningAsServerlessFunction = Boolean(
+  process.env.NETLIFY ||
+  process.env.NETLIFY_DEV ||
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME
+);
+if (!runningAsServerlessFunction) {
   const scheduler = setInterval(() => executeDueDraws().catch((error) => console.error('Draw scheduler error:', error.message)), 60 * 1000);
   scheduler.unref?.();
   app.listen(port, () => console.log(`Dear Results Portal API listening on port ${port}`));
 }
 
+export { executeDueDraws };
 export default app;
