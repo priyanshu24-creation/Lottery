@@ -21,8 +21,78 @@ const validateAdminOverview = (value) => {
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = <><a href="#latest">Latest results</a><a href="#schedule">Schedule</a><a href="/games">Games</a><a href="#about">About</a><a href="/account">My account</a></>;
-  return <header className="topbar"><a className="brand" href="/"><span className="brand-mark">D</span><span>drawline<span className="brand-dot">.</span><small>RESULTS, CLEARLY</small></span></a><nav>{links}</nav><button className="mobile-menu-button" onClick={()=>setMenuOpen((open)=>!open)} aria-label={menuOpen?'Close navigation':'Open navigation'}>{menuOpen?<X size={20}/>:<Menu size={20}/>}</button>{menuOpen&&<nav className="mobile-nav" onClick={()=>setMenuOpen(false)}>{links}</nav>}</header>;
+  const links = <><a href="/">Home</a><a href="/#latest">Latest Results</a><a href="/#schedule">Lottery Schedule</a><a href="/games">Games</a><a href="/#about">About</a><a href="/account">My Account</a></>;
+  return <><header className="topbar"><a className="brand" href="/"><span className="brand-mark">D</span><span>Drawline<small>LOTTERY RESULTS</small></span></a><nav>{links}</nav><button className="mobile-menu-button" onClick={()=>setMenuOpen((open)=>!open)} aria-label={menuOpen?'Close navigation':'Open navigation'}>{menuOpen?<X size={20}/>:<Menu size={20}/>}</button>{menuOpen&&<nav className="mobile-nav" onClick={()=>setMenuOpen(false)}>{links}</nav>}</header><div className="announcement-bar" role="status"><marquee behavior="scroll" direction="left" scrollAmount="6">LOTTERY DRAW TIMINGS: 1:00 PM | 6:00 PM | 8:00 PM DAILY — CHECK THE LATEST RESULTS AFTER EACH DRAW</marquee></div></>;
+}
+
+function SiteFooter() {
+  return <footer className="simple-footer"><div><strong>Drawline</strong><span>Lottery results and schedule information.</span></div><nav><a href="/">Home</a><a href="/#latest">Latest Results</a><a href="/#schedule">Schedule</a><a href="/#about">About</a></nav><p>For information only. Always verify results with the official lottery source.</p></footer>;
+}
+
+const drawTimes = [
+  { label: '1:00 PM', hour: 13 },
+  { label: '6:00 PM', hour: 18 },
+  { label: '8:00 PM', hour: 20 }
+];
+
+const localDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+function getScheduleStatus(drawTime, results) {
+  const today = localDateKey();
+  const published = results.find((result) => localDateKey(result.draw_date) === today && String(result.draw_label || '').toLowerCase().includes(`${drawTime.hour} pm`));
+  if (published) return { label: 'Result published', className: 'published' };
+  const now = new Date();
+  const drawAt = new Date(now);
+  drawAt.setHours(drawTime.hour, 0, 0, 0);
+  return now < drawAt ? { label: 'Upcoming', className: 'upcoming' } : { label: 'Awaiting result', className: 'pending' };
+}
+
+function ResultsTable({ results, onView }) {
+  return <div className="table-scroll"><table className="results-table"><thead><tr><th>Lottery Name</th><th>Draw Date</th><th>Draw Time</th><th>Winning Numbers</th><th>Result Status</th><th>View Details</th></tr></thead><tbody>{results.length === 0 ? <tr><td colSpan="6" className="empty-cell">No published lottery results found.</td></tr> : results.map((result) => <tr key={result.id}><td><strong>{result.lottery_name}</strong></td><td>{fmtDate(result.draw_date)}</td><td>{result.draw_label || 'Time not provided'}</td><td className="winning-number-cell">{result.winning_numbers.length ? result.winning_numbers.join(', ') : 'Not published'}</td><td><span className="status published">Published</span></td><td><button className="table-link" onClick={() => onView(result)}>View details</button></td></tr>)}</tbody></table></div>;
+}
+
+function TraditionalPublicSite() {
+  const [results, setResults] = useState([]), [lotteries, setLotteries] = useState([]), [games, setGames] = useState([]), [query, setQuery] = useState(''), [loading, setLoading] = useState(true), [error, setError] = useState(''), [selected, setSelected] = useState(null);
+
+  async function load(search = '') {
+    setLoading(true);
+    setError('');
+    try {
+      const [resultResponse, lotteryResponse, gameResponse] = await Promise.all([api(`/results?limit=50&search=${encodeURIComponent(search)}`), api('/lotteries'), api('/games')]);
+      const availableGames = expectArray(gameResponse, 'games');
+      const gamesWithHistory = await Promise.all(availableGames.map(async (game) => {
+        try {
+          const details = expectObject(await api(`/games/${encodeURIComponent(game.slug)}`), `${game.name} game details`);
+          const draws = expectArray(details.draws, `${game.name} game draws`);
+          return { ...game, latestResult: draws.find((draw) => draw.status === 'drawn') || null };
+        } catch {
+          return { ...game, latestResult: null };
+        }
+      }));
+      setResults(validateResults(resultResponse, 'published results'));
+      setLotteries(expectArray(lotteryResponse, 'lotteries'));
+      setGames(gamesWithHistory);
+    } catch (loadError) {
+      setError(`${loadError.message} Start the backend locally or redeploy the unified Vercel application.`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return <main className="traditional-page">
+    <section className="portal-intro"><h1>Welcome to Drawline Lottery Results</h1><p>Check published lottery results, winning numbers, draw dates, and upcoming draw schedules in one place.</p></section>
+    <section id="latest" className="portal-section"><div className="section-heading"><div><h2>Latest Lottery Results</h2><p>Only verified and published results are shown.</p></div><form className="simple-search" onSubmit={(event) => { event.preventDefault(); load(query); }}><label htmlFor="result-search">Search results</label><div><input id="result-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Lottery name, date or draw time"/><button type="submit">Search</button></div></form></div>{error && <div className="alert error-text" role="alert">{error}</div>}{loading ? <div className="loading">Loading lottery results…</div> : <ResultsTable results={results} onView={setSelected}/>}</section>
+    <section id="schedule" className="portal-section"><h2>Today's Lottery Schedule</h2><p>Results are shown only after the draw is complete and the official result is published.</p><div className="table-scroll"><table className="schedule-table"><thead><tr><th>Draw Time</th><th>Status</th><th>Information</th></tr></thead><tbody>{drawTimes.map((drawTime) => { const status = getScheduleStatus(drawTime, results); return <tr key={drawTime.label}><td><strong>{drawTime.label}</strong></td><td><span className={`status ${status.className}`}>{status.label}</span></td><td>{status.className === 'published' ? 'Published results are available above.' : status.className === 'upcoming' ? 'Please check again after the draw.' : 'Waiting for a verified result.'}</td></tr>; })}</tbody></table></div></section>
+    <section id="games" className="portal-section"><h2>Lottery Games</h2><p>Available games and their latest information from Drawline.</p><div className="table-scroll"><table className="games-table"><thead><tr><th>Game Name</th><th>Draw Schedule</th><th>Latest Available Result</th><th>History</th></tr></thead><tbody>{games.length === 0 ? <tr><td colSpan="4" className="empty-cell">No games are available right now.</td></tr> : games.map((game) => <tr key={game.id}><td><strong>{game.name}</strong><small>{game.description || 'Drawline game'}</small></td><td>{game.draw_at ? new Date(game.draw_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Schedule pending'}</td><td>{game.latestResult?.winning_numbers?.length ? game.latestResult.winning_numbers.join(', ') : 'No result yet'}</td><td><a className="table-link" href={`/games/${game.slug}`}>View history</a></td></tr>)}</tbody></table></div></section>
+    <section id="about" className="portal-section about-simple"><h2>About Drawline</h2><p>Drawline is an information portal. It does not sell tickets or accept bets. Please check every result with the authorized lottery source before making any decision.</p></section>
+    <section className="simple-disclaimer"><strong>Important:</strong> Lottery results can change. Use the official published result as the final source of information.</section>
+    <ResultModal result={selected} close={() => setSelected(null)}/>
+  </main>;
 }
 
 function ResultCard({ result, onClick }) {
@@ -115,7 +185,7 @@ export default function App() {
   }
 
   if (path === '/admin' || path === '/admin/dashboard') return <Admin onClose={() => navigate('/')} onAuthenticated={() => navigate('/admin/dashboard')} onUnauthenticated={() => navigate('/admin')}/>;
-  if (path === '/games' || path.startsWith('/games/')) return <GamesPage slug={path.startsWith('/games/') ? decodeURIComponent(path.slice('/games/'.length)) : ''}/>;
-  if (path === '/account') return <AccountPage/>;
-  return <PublicSite/>;
+  if (path === '/games' || path.startsWith('/games/')) return <><Header/><GamesPage slug={path.startsWith('/games/') ? decodeURIComponent(path.slice('/games/'.length)) : ''}/><SiteFooter/></>;
+  if (path === '/account') return <><Header/><AccountPage/><SiteFooter/></>;
+  return <><Header/><TraditionalPublicSite/><SiteFooter/></>;
 }
