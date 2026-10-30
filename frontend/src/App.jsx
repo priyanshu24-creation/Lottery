@@ -55,7 +55,7 @@ function ResultsTable({ results, onView }) {
 }
 
 function TraditionalPublicSite() {
-  const [results, setResults] = useState([]), [lotteries, setLotteries] = useState([]), [games, setGames] = useState([]), [query, setQuery] = useState(''), [loading, setLoading] = useState(true), [error, setError] = useState(''), [selected, setSelected] = useState(null);
+  const [results, setResults] = useState([]), [lotteries, setLotteries] = useState([]), [games, setGames] = useState([]), [query, setQuery] = useState(''), [loading, setLoading] = useState(true), [error, setError] = useState(''), [selected, setSelected] = useState(null), [videoFailed, setVideoFailed] = useState(false);
 
   async function load(search = '') {
     setLoading(true);
@@ -85,6 +85,7 @@ function TraditionalPublicSite() {
   useEffect(() => { load(); }, []);
 
   return <main className="traditional-page">
+    <section className="poster-video-section" aria-label="Drawline lottery video"><div className="poster-video-frame">{videoFailed ? <div className="poster-video-fallback">Lottery draw video is temporarily unavailable.</div> : <video autoPlay muted defaultMuted loop playsInline preload="auto" aria-label="Drawline lottery draw video" onError={() => setVideoFailed(true)}><source src="/assets/lottery-draw.mp4" type="video/mp4"/>Your browser does not support this video.</video>}</div></section>
     <section className="portal-intro"><h1>Welcome to Drawline Lottery Results</h1><p>Check published lottery results, winning numbers, draw dates, and upcoming draw schedules in one place.</p></section>
     <section id="latest" className="portal-section"><div className="section-heading"><div><h2>Latest Lottery Results</h2><p>Only verified and published results are shown.</p></div><form className="simple-search" onSubmit={(event) => { event.preventDefault(); load(query); }}><label htmlFor="result-search">Search results</label><div><input id="result-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Lottery name, date or draw time"/><button type="submit">Search</button></div></form></div>{error && <div className="alert error-text" role="alert">{error}</div>}{loading ? <div className="loading">Loading lottery results…</div> : <ResultsTable results={results} onView={setSelected}/>}</section>
     <section id="schedule" className="portal-section"><h2>Today's Lottery Schedule</h2><p>Results are shown only after the draw is complete and the official result is published.</p><div className="table-scroll"><table className="schedule-table"><thead><tr><th>Draw Time</th><th>Status</th><th>Information</th></tr></thead><tbody>{drawTimes.map((drawTime) => { const status = getScheduleStatus(drawTime, results); return <tr key={drawTime.label}><td><strong>{drawTime.label}</strong></td><td><span className={`status ${status.className}`}>{status.label}</span></td><td>{status.className === 'published' ? 'Published results are available above.' : status.className === 'upcoming' ? 'Please check again after the draw.' : 'Waiting for a verified result.'}</td></tr>; })}</tbody></table></div></section>
