@@ -85,7 +85,7 @@ function AdminResults({rows,onEdit,onDelete,compact=false}) {
 }
 
 export default function App() {
-  const [results,setResults]=useState([]),[lotteries,setLotteries]=useState([]),[query,setQuery]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(null),[adminOpen,setAdminOpen]=useState(false);
+  const [results,setResults]=useState([]),[lotteries,setLotteries]=useState([]),[query,setQuery]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(null),[adminOpen,setAdminOpen]=useState(window.location.pathname === '/admin');
   async function load(q=''){setLoading(true);setError('');try{const [r,l]=await Promise.all([api(`/results?limit=50&search=${encodeURIComponent(q)}`),api('/lotteries')]);setResults(r);setLotteries(l)}catch(e){setError(`${e.message}. Start the backend and configure the database to load live content.`)}finally{setLoading(false)}}
   useEffect(()=>{load()},[]);
   return <><Header /><HomepageVideo /><main>
