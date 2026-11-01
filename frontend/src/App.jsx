@@ -9,18 +9,15 @@ const safeArray = (v) => Array.isArray(v) ? v : [];
 function Header() {
   return (
     <header className="topbar">
-      <a className="brand" href="#">
-        <span className="brand-mark">B</span>
-        <span>
-          BHOTAN<span className="brand-dot">.</span>
-          <small>RESULTS, CLEARLY</small>
-        </span>
+      <a className="brand" href="#" aria-label="BHOTAN Golden Lottery Home">
+        <img className="brand-logo" src="/bhotan-logo.png" alt="BHOTAN LIVE LOTTERY" />
       </a>
-
       <nav>
-        <a href="#latest">Latest results</a>
-        <a href="#schedule">Schedule</a>
+        <a href="#">Home</a>
+        <a href="#latest">Latest Results</a>
+        <a href="#schedule">Lottery Schedule</a>
         <a href="#about">About</a>
+        <a href="/admin">Admin</a>
       </nav>
     </header>
   );
@@ -85,15 +82,163 @@ function AdminResults({rows,onEdit,onDelete,compact=false}) {
 }
 
 export default function App() {
-  const [results,setResults]=useState([]),[lotteries,setLotteries]=useState([]),[query,setQuery]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(null),[adminOpen,setAdminOpen]=useState(window.location.pathname === '/admin');
-  async function load(q=''){setLoading(true);setError('');try{const [r,l]=await Promise.all([api(`/results?limit=50&search=${encodeURIComponent(q)}`),api('/lotteries')]);setResults(r);setLotteries(l)}catch(e){setError(`${e.message}. Start the backend and configure the database to load live content.`)}finally{setLoading(false)}}
-  useEffect(()=>{load()},[]);
-  return <><Header /><HomepageVideo /><main>
-    <section className="hero"><div className="hero-copy"><span className="hero-kicker"><span/> A CLEARER WAY TO CHECK RESULTS</span><h1>Every result.<br/><em>Clearly presented.</em></h1><p>A calm, simple place to find published draw results, review previous records, and check draw schedules from verified sources.</p><div className="hero-actions"><a className="primary-button" href="#latest">Explore latest results <ArrowUpRight size={17}/></a><a className="quiet-link" href="#about">How this works <ChevronRight size={16}/></a></div><div className="hero-trust"><ShieldCheck size={17}/><span>Information-first. Source-aware. Transparent.</span></div></div><div className="hero-art"><div className="art-orbit orbit-one"></div><div className="art-orbit orbit-two"></div><div className="ticket-illustration"><div className="ticket-brand"><span className="brand-mark">D</span><span>BHOTAN</span><span className="ticket-check"><CheckCircle2 size={18}/></span></div><div className="ticket-line"></div><div className="ticket-caption">RESULT SNAPSHOT</div><div className="ticket-balls"><span>08</span><span>14</span><span>27</span><span>36</span></div><div className="ticket-footer"><span>Verified source required</span><Sparkles size={15}/></div></div><div className="floating-note"><CheckCircle2 size={17}/><div><strong>Clarity first</strong><small>Results with context</small></div></div><div className="floating-date"><CalendarDays size={17}/><div><small>ARCHIVE</small><strong>By draw date</strong></div></div></div><div className="hero-index">INFORMATION PORTAL <span>—</span> 01 / 03</div></section>
-    <section className="trust-strip"><div><ShieldCheck/><span><strong>Source-aware</strong><small>Look for official references</small></span></div><div><Clock3/><span><strong>Easy to scan</strong><small>Dates and numbers in view</small></span></div><div><FileText/><span><strong>Result archive</strong><small>Past published records</small></span></div><div><CircleHelp/><span><strong>Informational</strong><small>No ticket sales on this site</small></span></div></section>
-    <section id="latest" className="section latest-section"><div className="section-heading"><div><span className="eyebrow">THE LATEST</span><h2>Recently published</h2><p>Browse the most recent results available in the portal.</p></div><div className="search-box"><Search size={17}/><input aria-label="Search results" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&load(query)} placeholder="Search results"/><button onClick={()=>load(query)}>Search</button></div></div>{error&&<div className="alert error-text">{error}</div>}{loading?<div className="loading">Loading published results…</div>:results.length===0?<div className="empty-state"><div className="empty-icon"><Trophy/></div><h3>No published results yet</h3><p>When an administrator verifies and publishes a result, it will appear here.</p></div>:<div className="results-grid">{results.slice(0,6).map(r=><ResultCard key={r.id} result={r} onClick={setSelected}/>)}</div>}<div className="section-footer"><span>Showing published records only</span><span className="status published"><CheckCircle2 size={13}/> PUBLIC VIEW</span></div></section>
-    <section id="schedule" className="section schedule-section"><div className="schedule-intro"><span className="eyebrow">PLAN YOUR LOOKUP</span><h2>Know where to look.</h2><p>Schedules can change. Confirm draw timings with the official organizer before relying on them.</p><div className="schedule-note"><Clock3 size={18}/><span>Only administrator-verified schedules should be shown as current.</span></div></div><div className="schedule-list">{lotteries.length===0?<div className="schedule-row"><span className="schedule-icon"><CalendarDays/></span><div><strong>Schedule information pending</strong><small>Verified categories will appear here.</small></div><span className="muted">—</span></div>:lotteries.map(l=><div className="schedule-row" key={l.id}><span className="schedule-icon"><CalendarDays/></span><div><strong>{l.name}</strong><small>{l.description||'Check the official source for details.'}</small></div><span className="schedule-time">{l.draw_schedule||'Check official source'}</span></div>)}</div></section>
-    <section id="about" className="about-section"><div className="about-mark"><span className="brand-mark">D</span></div><div><span className="eyebrow">OUR APPROACH</span><h2>Useful information, without the noise.</h2><p>BHOTAN is designed as a results information portal. Published numbers should be checked against the authorized source, and corrections should be clearly handled. This website does not sell tickets, accept wagers, or guarantee outcomes.</p></div><div className="about-aside"><ShieldCheck size={22}/><strong>Check the source.</strong><span>Never treat a third-party listing as the final authority.</span></div></section>
-    <section className="disclaimer"><strong>Important information</strong><p>This is a website starter template. Sample artwork numbers are decorative and are not lottery results. No actual draw results are included. The operator must verify all published information, confirm legal requirements for the relevant jurisdiction, and provide accurate privacy, contact and disclaimer pages before launch.</p></section>
-  </main><footer className="footer"><a className="brand footer-brand" href="#"><span className="brand-mark">D</span><span>BHOTAN<span className="brand-dot">.</span><small>RESULTS, CLEARLY</small></span></a><span>© {new Date().getFullYear()} BHOTAN. Informational use only.</span><div><a href="#about">About</a><a href="#about">Privacy</a><a href="#about">Disclaimer</a></div></footer><ResultModal result={selected} close={()=>setSelected(null)}/>{adminOpen&&<Admin onClose={()=>setAdminOpen(false)}/>}</>;
+  const [results,setResults] = useState([]);
+  const [lotteries,setLotteries] = useState([]);
+  const [query,setQuery] = useState('');
+  const [loading,setLoading] = useState(true);
+  const [error,setError] = useState('');
+  const [selected,setSelected] = useState(null);
+  const [adminOpen,setAdminOpen] = useState(window.location.pathname === '/admin');
+
+  async function load(q='') {
+    setLoading(true);
+    setError('');
+    try {
+      const [r,l] = await Promise.all([
+        api(`/results?limit=50&search=${encodeURIComponent(q)}`),
+        api('/lotteries')
+      ]);
+      setResults(safeArray(r));
+      setLotteries(safeArray(l));
+    } catch(e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return <>
+    <Header />
+
+    <div className="announcement-bar" aria-label="Lottery announcement">
+      <marquee scrollAmount="5">
+        BHOTAN GOLDEN LOTTERY — Check published results and verified draw schedules.
+        &nbsp;&nbsp;&nbsp; Please verify all information with the official source.
+      </marquee>
+    </div>
+
+    <main className="traditional-page">
+      <HomepageVideo />
+
+      <section className="portal-intro">
+        <h1>Welcome to BHOTAN GOLDEN LOTTERY</h1>
+        <p>
+          Your destination for lottery results, draw information and schedules.
+          Browse published results and check the latest available information.
+        </p>
+      </section>
+
+      <section id="latest" className="portal-section">
+        <div className="section-heading">
+          <div>
+            <h2>Latest Lottery Results</h2>
+            <p>Browse published lottery results.</p>
+          </div>
+          <div className="simple-search">
+            <label htmlFor="result-search">Search results</label>
+            <div>
+              <input
+                id="result-search"
+                value={query}
+                onChange={e=>setQuery(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&load(query)}
+                placeholder="Enter lottery name..."
+              />
+              <button onClick={()=>load(query)}>Search</button>
+            </div>
+          </div>
+        </div>
+
+        {error && <div className="alert error-text">{error}</div>}
+
+        {loading ? <p className="loading">Loading results...</p> :
+          <div className="table-scroll">
+            <table className="results-table">
+              <thead>
+                <tr>
+                  <th>Lottery Name</th>
+                  <th>Draw Date</th>
+                  <th>Draw</th>
+                  <th>Winning Numbers</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.length === 0 ?
+                  <tr><td colSpan="6" className="empty-cell">No published results available.</td></tr> :
+                  results.map(r => (
+                    <tr key={r.id}>
+                      <td><strong>{r.lottery_name}</strong></td>
+                      <td>{fmtDate(r.draw_date)}</td>
+                      <td>{r.draw_label || 'Official draw'}</td>
+                      <td className="winning-number-cell">{safeArray(r.winning_numbers).join(', ') || 'Not available'}</td>
+                      <td><span className="status published">Published</span></td>
+                      <td><button className="table-link" onClick={()=>setSelected(r)}>View details</button></td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <section id="schedule" className="portal-section">
+        <h2>Lottery Schedule</h2>
+        <p>Check the available draw schedule. Confirm timings with the official organizer.</p>
+        <div className="table-scroll" style={{marginTop:16}}>
+          <table className="schedule-table">
+            <thead><tr><th>Lottery</th><th>Description</th><th>Draw Schedule</th><th>Status</th></tr></thead>
+            <tbody>
+              {lotteries.length === 0 ?
+                <tr><td colSpan="4" className="empty-cell">Schedule information pending.</td></tr> :
+                lotteries.map(l=>(
+                  <tr key={l.id}>
+                    <td><strong>{l.name}</strong></td>
+                    <td>{l.description || '—'}</td>
+                    <td>{l.draw_schedule || 'Check official source'}</td>
+                    <td>{l.is_active ? 'Active' : 'Inactive'}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="about" className="portal-section about-simple">
+        <h2>About BHOTAN GOLDEN LOTTERY</h2>
+        <p>
+          BHOTAN is an informational lottery results portal. Results and
+          schedules should always be verified with the authorized source.
+          This website does not guarantee lottery outcomes.
+        </p>
+      </section>
+
+      <div className="simple-disclaimer">
+        <strong>Disclaimer:</strong> Information is provided for reference.
+        Always confirm results and draw schedules with the official organizer.
+      </div>
+    </main>
+
+    <footer className="simple-footer">
+      <div>
+        <strong>BHOTAN GOLDEN LOTTERY</strong>
+        <span>Results and draw information</span>
+      </div>
+      <nav>
+        <a href="#">Home</a>
+        <a href="#latest">Results</a>
+        <a href="#schedule">Schedule</a>
+        <a href="#about">About</a>
+      </nav>
+      <p>© {new Date().getFullYear()} BHOTAN. Informational use only.</p>
+    </footer>
+
+    <ResultModal result={selected} close={()=>setSelected(null)} />
+    {adminOpen && <Admin onClose={()=>setAdminOpen(false)} />}
+  </>;
 }
