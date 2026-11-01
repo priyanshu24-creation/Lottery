@@ -10,7 +10,8 @@ function Header() {
   return (
     <header className="topbar">
       <a className="brand" href="#" aria-label="BHOTAN Golden Lottery Home">
-        <img className="brand-logo" src="/bhotan-logo.png" alt="BHOTAN LIVE LOTTERY" />
+        <img className="brand-logo" src="/bhotan-logo.png" alt="BHOTAN Logo" />
+        <span className="brand-name">BHOTAN GOLDEN LOTTERY</span>
       </a>
       <nav>
         <a href="#">Home</a>
