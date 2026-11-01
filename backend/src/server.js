@@ -572,6 +572,76 @@ app.get('/api/cron/draws', requireCronSecret, asyncRoute(async (_req, res) => {
   res.json({ ok: true, processed });
 }));
 
+
+// --- BHOTAN homepage video management (Cloudinary) ---
+async function ensureHomepageVideoTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS homepage_video (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    video_url TEXT NOT NULL,
+    public_id TEXT NOT NULL,
+    original_filename TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+}
+
+app.get('/api/settings/homepage-video', asyncRoute(async (_req, res) => {
+  await ensureHomepageVideoTable();
+  const { rows } = await pool.query('SELECT video_url, updated_at FROM homepage_video WHERE id=1');
+  res.set('Cache-Control', 'no-store');
+  res.json(rows[0] || null);
+}));
+
+app.get('/api/admin/homepage-video', requireAdmin, asyncRoute(async (_req, res) => {
+  await ensureHomepageVideoTable();
+  const { rows } = await pool.query('SELECT video_url, public_id, original_filename, updated_at FROM homepage_video WHERE id=1');
+  res.json(rows[0] || null);
+}));
+
+app.post('/api/admin/homepage-video/signature', requireAdmin, asyncRoute(async (_req, res) => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) return res.status(503).json({ error: 'Cloudinary environment variables are not configured on the backend.' });
+  const { v2: cloudinary } = await import('cloudinary');
+  const timestamp = Math.floor(Date.now() / 1000);
+  const folder = 'bhotan/homepage';
+  const public_id = `homepage-${timestamp}`;
+  const params = { timestamp, folder, public_id };
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+  res.json({ cloud_name: cloudName, api_key: apiKey, timestamp, folder, public_id, signature });
+}));
+
+app.put('/api/admin/homepage-video', requireAdmin, asyncRoute(async (req, res) => {
+  const { video_url, public_id, version, signature, original_filename } = req.body || {};
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!apiSecret || !process.env.CLOUDINARY_API_KEY) return res.status(503).json({ error: 'Cloudinary is not configured on the backend.' });
+  if (typeof video_url !== 'string' || !video_url.startsWith('https://res.cloudinary.com/') || typeof public_id !== 'string' || !public_id.startsWith('bhotan/homepage/') || !Number.isInteger(Number(version)) || typeof signature !== 'string') {
+    return res.status(400).json({ error: 'Invalid Cloudinary upload details.' });
+  }
+  const { v2: cloudinary } = await import('cloudinary');
+  const expected = cloudinary.utils.api_sign_request({ public_id, version: Number(version) }, apiSecret);
+  if (expected !== signature) return res.status(403).json({ error: 'Cloudinary upload signature verification failed.' });
+  await ensureHomepageVideoTable();
+  const { rows } = await pool.query(`INSERT INTO homepage_video (id, video_url, public_id, original_filename, updated_at)
+    VALUES (1,$1,$2,$3,NOW()) ON CONFLICT (id) DO UPDATE SET video_url=EXCLUDED.video_url, public_id=EXCLUDED.public_id,
+    original_filename=EXCLUDED.original_filename, updated_at=NOW()
+    RETURNING video_url, public_id, original_filename, updated_at`, [video_url, public_id, String(original_filename || '').slice(0,255)]);
+  res.json(rows[0]);
+}));
+
+app.delete('/api/admin/homepage-video', requireAdmin, asyncRoute(async (_req, res) => {
+  await ensureHomepageVideoTable();
+  const { rows } = await pool.query('SELECT public_id FROM homepage_video WHERE id=1');
+  if (rows[0]?.public_id && process.env.CLOUDINARY_API_SECRET && process.env.CLOUDINARY_API_KEY) {
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET, secure: true });
+    await cloudinary.uploader.destroy(rows[0].public_id, { resource_type: 'video', invalidate: true });
+  }
+  await pool.query('DELETE FROM homepage_video WHERE id=1');
+  res.status(204).end();
+}));
+// --- End homepage video management ---
+
 app.use((req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
 app.use((err, _req, res, _next) => {
   if (err.code === '23505') return res.status(409).json({ error: 'A record with these details already exists.' });
