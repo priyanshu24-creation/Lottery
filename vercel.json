@@ -10,16 +10,14 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/draws", "schedule": "* * * * *" }
-  ],
+  {
+    "path": "/api/cron/draws",
+    "schedule": "0 0 * * *"
+  }
+],
+
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/((?!api(?:/|$)).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
